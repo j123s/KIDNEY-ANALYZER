@@ -1,0 +1,10 @@
+2025-05-20 14:12:16,105 - root - WARNING - Using synthetic data: HTTP Error 404: Not Found
+2025-05-20 14:12:16,275 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://172.16.28.66:5000
+2025-05-20 14:12:16,275 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2025-05-20 14:12:16,277 - werkzeug - INFO -  * Restarting with stat
+2025-05-20 14:12:18,508 - root - INFO - Loaded pre-trained model from disk
+2025-05-20 14:12:18,529 - werkzeug - WARNING -  * Debugger is active!
+2025-05-20 14:12:18,532 - werkzeug - INFO -  * Debugger PIN: 960-540-899
