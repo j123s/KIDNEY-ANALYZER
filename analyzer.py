@@ -19,16 +19,14 @@ from sklearn.ensemble import RandomForestClassifier
 import joblib
 from fpdf import FPDF
 import matplotlib
-matplotlib.use('Agg')  # Set backend before importing pyplot
+matplotlib.use('Agg')  
 import matplotlib.pyplot as plt
 from werkzeug.utils import secure_filename
 from io import BytesIO
 
-# ==================== CONFIGURATION ====================
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'dev-key-please-change-in-prod')
 
-# Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -38,11 +36,10 @@ logging.basicConfig(
     ]
 )
 
-# Constants
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
 
-# ==================== ML MODEL SERVICE ====================
+
 class KidneyModelService:
     def __init__(self):
         self.model = None
@@ -66,19 +63,19 @@ class KidneyModelService:
     def train_model(self):
         """Train model using real clinical data"""
         try:
-            # Try loading from UCI repository
+            
             ckd_url = "https://archive.ics.uci.edu/ml/machine-learning-databases/00337/Chronic_Kidney_Disease.csv"
             df = pd.read_csv(ckd_url, na_values=['?','\t?'])
             
-            # Preprocessing
+           
             df = df.dropna()
             df['class'] = df['class'].map({'ckd':1, 'notckd':0})
             
-            # Feature selection
+           
             X = df[self.feature_names]
             y = df['class']
             
-            # Model training
+           
             self.model = RandomForestClassifier(
                 n_estimators=150,
                 max_depth=8,
@@ -87,13 +84,13 @@ class KidneyModelService:
             )
             self.model.fit(X, y)
             
-            # Save model
+        
             joblib.dump(self.model, 'kidney_model.pkl')
             logging.info("Trained new model with clinical data")
             
         except Exception as e:
             logging.warning(f"Using synthetic data: {str(e)}")
-            # Fallback to synthetic data
+           
             data = {
                 'age': [48,53,63,42,58,61,45,50,55,60,65,70,40,35,72]*20,
                 'bp': [80,90,70,80,90,80,70,80,90,100,85,75,95,65,110]*20,
@@ -108,10 +105,10 @@ class KidneyModelService:
             self.model.fit(df[self.feature_names], df['class'])
             joblib.dump(self.model, 'kidney_model.pkl')
 
-# Initialize service
+
 model_service = KidneyModelService()
 
-# ==================== CLINICAL CALCULATIONS ====================
+
 class ClinicalCalculator:
     @staticmethod
     def calculate_egfr(creatinine, age, gender, race='other'):
@@ -126,13 +123,13 @@ class ClinicalCalculator:
         cr_ratio = creatinine / k
         egfr = 141 * (min(cr_ratio, 1)**alpha) * (max(cr_ratio, 1)**-1.209) * (0.993**age)
         
-        # Adjustments
+       
         if gender == 'female':
             egfr *= 1.018
         if race == 'black':
             egfr *= 1.159
             
-        return round(max(egfr, 1), 1)  # Ensure eGFR doesn't go below 1
+        return round(max(egfr, 1), 1)  
 
     @staticmethod
     def get_ckd_stage(egfr):
@@ -154,11 +151,11 @@ class ClinicalCalculator:
     def calculate_water_intake(egfr, weight_kg):
         """Personalized fluid recommendations"""
         if egfr < 15:
-            return 1000  # Strict restriction for dialysis patients
+            return 1000  
         elif egfr < 30:
             return min(1500, weight_kg * 20)
         else:
-            return weight_kg * 30  # Standard recommendation
+            return weight_kg * 30  
 
     @staticmethod
     def interpret_creatinine(creatinine, age, gender):
@@ -176,7 +173,7 @@ class ClinicalCalculator:
             }
         }
         
-        # Determine age group
+       
         age_group = '60+' if age >= 60 else '30-60' if age >= 30 else '18-30'
         low, high = ranges[gender][age_group]
         
@@ -196,7 +193,7 @@ class ClinicalCalculator:
             'age_group': f"{gender.title()}, {age_group}"
         }
 
-# ==================== REPORT GENERATOR ====================
+
 class PDFReportGenerator:
     def __init__(self):
         self.pdf = FPDF()
@@ -204,7 +201,7 @@ class PDFReportGenerator:
     
     def generate_report(self, patient_data, result_data, diet_plan):
         """Generate comprehensive PDF report"""
-        # Setup
+    
         self.pdf.add_page()
         self._add_header()
         self._add_patient_info(patient_data)
@@ -212,7 +209,7 @@ class PDFReportGenerator:
         self._add_diet_section(diet_plan)
         self._add_footer()
         
-        # Save to buffer
+       
         pdf_buffer = BytesIO()
         self.pdf.output(pdf_buffer)
         pdf_buffer.seek(0)
@@ -247,18 +244,18 @@ class PDFReportGenerator:
         self.pdf.cell(0, 10, 'Test Results', ln=1)
         self.pdf.set_font('Arial', '', 12)
         
-        # Risk assessment
+       
         risk_status = "High Risk" if results.get('prediction') else "Low Risk"
         risk_color = (255, 0, 0) if results.get('prediction') else (0, 128, 0)
         self.pdf.set_text_color(*risk_color)
         self.pdf.cell(0, 10, f"Kidney Disease Risk: {risk_status} ({results.get('probability', 0)}% confidence)", ln=1)
         self.pdf.set_text_color(0, 0, 0)
         
-        # eGFR info
+    
         self.pdf.cell(0, 10, f"eGFR: {results.get('egfr', 'N/A')} mL/min/1.73m²", ln=1)
         self.pdf.cell(0, 10, f"CKD Stage: {results.get('stage', 'N/A')} - {results.get('stage_desc', '')}", ln=1)
         
-        # Water intake
+       
         self.pdf.ln(5)
         self.pdf.set_font('Arial', 'B', 12)
         self.pdf.cell(0, 10, 'Daily Fluid Recommendation:', ln=1)
@@ -276,14 +273,13 @@ class PDFReportGenerator:
         self.pdf.set_font('Arial', 'B', 14)
         self.pdf.cell(0, 10, 'Dietary Recommendations', ln=1)
         
-        # Recommended foods
+        
         self.pdf.set_font('Arial', 'B', 12)
         self.pdf.cell(0, 10, 'Recommended Foods:', ln=1)
         self.pdf.set_font('Arial', '', 12)
         for food in diet.get('recommended', []):
             self.pdf.cell(0, 10, f"- {food.get('name', '')}", ln=1)
         
-        # Foods to avoid
         self.pdf.ln(5)
         self.pdf.set_font('Arial', 'B', 12)
         self.pdf.cell(0, 10, 'Foods to Limit/Avoid:', ln=1)
@@ -291,7 +287,6 @@ class PDFReportGenerator:
         for food in diet.get('avoid', []):
             self.pdf.cell(0, 10, f"- {food.get('name', '')}", ln=1)
         
-        # General advice
         self.pdf.ln(5)
         self.pdf.set_font('Arial', 'B', 12)
         self.pdf.cell(0, 10, 'Additional Advice:', ln=1)
@@ -307,7 +302,6 @@ class PDFReportGenerator:
         self.pdf.set_font('Arial', 'I', 8)
         self.pdf.cell(0, 10, 'This report is not a substitute for professional medical advice', 0, 0, 'C')
 
-# ==================== FLASK ROUTES ====================
 @app.route('/', methods=['GET', 'POST'])
 def home():
     """Main form page"""
@@ -315,13 +309,13 @@ def home():
         try:
             form_data = request.form.to_dict()
             
-            # Validate inputs
+         
             required_fields = ['age', 'bp', 'sg', 'al', 'su', 'creatinine', 'gender', 'weight']
             for field in required_fields:
                 if not form_data.get(field):
                     raise ValueError(f"Missing required field: {field}")
             
-            # Convert types
+           
             input_data = {
                 'age': int(form_data['age']),
                 'bp': int(form_data['bp']),
@@ -331,17 +325,17 @@ def home():
                 'creatinine': float(form_data['creatinine']),
                 'gender': form_data['gender'],
                 'weight': float(form_data['weight']),
-                'hemo': float(form_data.get('hemo', 12.5)),  # Default if not provided
+                'hemo': float(form_data.get('hemo', 12.5)),  
                 'race': form_data.get('race', 'other')
             }
             
-            # Validate ranges
+          
             if not (18 <= input_data['age'] <= 120):
                 raise ValueError("Age must be between 18-120")
             if not (50 <= input_data['bp'] <= 200):
                 raise ValueError("Blood pressure must be between 50-200 mmHg")
             
-            # Clinical calculations
+           
             egfr = ClinicalCalculator.calculate_egfr(
                 input_data['creatinine'],
                 input_data['age'],
@@ -350,7 +344,7 @@ def home():
             )
             stage, stage_desc = ClinicalCalculator.get_ckd_stage(egfr)
             
-            # ML Prediction
+          
             model_input = pd.DataFrame([{
                 k: v for k, v in input_data.items() 
                 if k in model_service.feature_names
@@ -359,13 +353,13 @@ def home():
             pred = model_service.model.predict(model_input)[0]
             proba = round(model_service.model.predict_proba(model_input)[0][pred] * 100, 2)
             
-            # Feature importance
+         
             feat_importance = dict(zip(
                 model_service.feature_names,
                 model_service.model.feature_importances_
             ))
             
-            # Diet plan
+           
             diet = get_diet_plan(
                 pred,
                 input_data['age'],
@@ -373,7 +367,7 @@ def home():
                 egfr
             )
             
-            # Store results in session
+           
             session['kidney_results'] = {
     'prediction': int(pred),
     'probability': float(proba),
@@ -416,7 +410,7 @@ def results():
         return redirect(url_for('home'))
     
     try:
-        # Generate visualizations
+       
         visualization_paths = generate_visualizations(result)
         
         return render_template_string(
@@ -453,7 +447,7 @@ def download_report():
         logging.error(f"Error generating PDF: {str(e)}")
         return redirect(url_for('results', error="Could not generate report"))
 
-# ==================== HELPER FUNCTIONS ====================
+
 def get_diet_plan(prediction, age, bp, egfr):
     """Generate personalized diet recommendations"""
     if prediction == 1 or egfr < 60:
@@ -507,11 +501,11 @@ def generate_visualizations(result_data):
     visualization_paths = {}
     
     try:
-        # Create static directory if not exists
+      
         if not os.path.exists('static'):
             os.makedirs('static')
         
-        # Visualization 1: eGFR Stage Comparison
+        
         plt.figure(figsize=(10, 6))
         stages = ['G1', 'G2', 'G3a', 'G3b', 'G4', 'G5']
         colors = ['#4CAF50', '#8BC34A', '#FFC107', '#FF9800', '#F44336', '#9C27B0']
@@ -520,7 +514,6 @@ def generate_visualizations(result_data):
         bars = plt.bar(stages, stage_ranges, color=colors, alpha=0.6)
         plt.axhline(y=result_data['egfr'], color='black', linestyle='--', linewidth=2)
         
-        # Add value annotations
         for bar in bars:
             height = bar.get_height()
             plt.text(bar.get_x() + bar.get_width()/2., height,
@@ -532,25 +525,23 @@ def generate_visualizations(result_data):
         plt.xlabel('Chronic Kidney Disease Stages')
         plt.grid(axis='y', linestyle='--', alpha=0.7)
         
-        # Save plot
+    
         egfr_path = os.path.join('static', 'egfr_plot.png')
         plt.savefig(egfr_path, bbox_inches='tight', dpi=100)
         plt.close()
         visualization_paths['egfr'] = egfr_path
         
-        # Visualization 2: Feature Importance
+      
         plt.figure(figsize=(10, 6))
         features = list(result_data['feature_importance'].keys())
         importance = list(result_data['feature_importance'].values())
-        
-        # Sort by importance
+     
         sorted_idx = np.argsort(importance)
         features = [features[i] for i in sorted_idx]
         importance = [importance[i] for i in sorted_idx]
         
         bars = plt.barh(features, importance, color='#4361EE')
         
-        # Add value labels
         for bar in bars:
             width = bar.get_width()
             plt.text(width + 0.01, bar.get_y() + bar.get_height()/2.,
@@ -561,7 +552,7 @@ def generate_visualizations(result_data):
         plt.xlabel('Relative Importance')
         plt.grid(axis='x', linestyle='--', alpha=0.7)
         
-        # Save plot
+       
         feature_path = os.path.join('static', 'feature_plot.png')
         plt.savefig(feature_path, bbox_inches='tight', dpi=100)
         plt.close()
@@ -573,7 +564,7 @@ def generate_visualizations(result_data):
         logging.error(f"Visualization generation failed: {str(e)}")
         return {}
 
-# ==================== HTML TEMPLATES ====================
+
 HOME_TEMPLATE = '''
 <!DOCTYPE html>
 <html lang="en">
@@ -1293,11 +1284,11 @@ RESULTS_TEMPLATE = '''
 </html>
 '''
 
-# ==================== APPLICATION START ====================
+
 if __name__ == '__main__':
-    # Create necessary directories
+   
     if not os.path.exists('static'):
         os.makedirs('static')
     
-    # Run the application
+ 
     app.run(host='0.0.0.0', port=5000, debug=True)
