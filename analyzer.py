@@ -24,8 +24,10 @@ import matplotlib.pyplot as plt
 from werkzeug.utils import secure_filename
 from io import BytesIO
 
+
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'dev-key-please-change-in-prod')
+
 
 logging.basicConfig(
     level=logging.INFO,
@@ -35,6 +37,7 @@ logging.basicConfig(
         logging.StreamHandler(sys.stdout)
     ]
 )
+
 
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
@@ -58,8 +61,7 @@ class KidneyModelService:
                 self.train_model()
         except Exception as e:
             logging.error(f"Model loading failed: {str(e)}")
-            self.train_model()  # Fallback to training
-
+            self.train_model()  
     def train_model(self):
         """Train model using real clinical data"""
         try:
@@ -67,7 +69,7 @@ class KidneyModelService:
             ckd_url = "https://archive.ics.uci.edu/ml/machine-learning-databases/00337/Chronic_Kidney_Disease.csv"
             df = pd.read_csv(ckd_url, na_values=['?','\t?'])
             
-           
+            
             df = df.dropna()
             df['class'] = df['class'].map({'ckd':1, 'notckd':0})
             
@@ -84,13 +86,13 @@ class KidneyModelService:
             )
             self.model.fit(X, y)
             
-        
+            
             joblib.dump(self.model, 'kidney_model.pkl')
             logging.info("Trained new model with clinical data")
             
         except Exception as e:
             logging.warning(f"Using synthetic data: {str(e)}")
-           
+            
             data = {
                 'age': [48,53,63,42,58,61,45,50,55,60,65,70,40,35,72]*20,
                 'bp': [80,90,70,80,90,80,70,80,90,100,85,75,95,65,110]*20,
@@ -123,14 +125,13 @@ class ClinicalCalculator:
         cr_ratio = creatinine / k
         egfr = 141 * (min(cr_ratio, 1)**alpha) * (max(cr_ratio, 1)**-1.209) * (0.993**age)
         
-       
+        # Adjustments
         if gender == 'female':
             egfr *= 1.018
         if race == 'black':
             egfr *= 1.159
             
         return round(max(egfr, 1), 1)  
-
     @staticmethod
     def get_ckd_stage(egfr):
         """Return CKD stage with description"""
@@ -173,7 +174,7 @@ class ClinicalCalculator:
             }
         }
         
-       
+        
         age_group = '60+' if age >= 60 else '30-60' if age >= 30 else '18-30'
         low, high = ranges[gender][age_group]
         
@@ -201,19 +202,20 @@ class PDFReportGenerator:
     
     def generate_report(self, patient_data, result_data, diet_plan):
         """Generate comprehensive PDF report"""
-    
         self.pdf.add_page()
         self._add_header()
         self._add_patient_info(patient_data)
         self._add_results_section(result_data)
         self._add_diet_section(diet_plan)
         self._add_footer()
-        
-       
-        pdf_buffer = BytesIO()
-        self.pdf.output(pdf_buffer)
+
+        pdf_data = self.pdf.output(dest='S').encode('latin1')
+        pdf_buffer = BytesIO(pdf_data)
         pdf_buffer.seek(0)
         return pdf_buffer
+
+
+
 
     def _add_header(self):
         self.pdf.set_font('Arial', 'B', 16)
@@ -244,18 +246,17 @@ class PDFReportGenerator:
         self.pdf.cell(0, 10, 'Test Results', ln=1)
         self.pdf.set_font('Arial', '', 12)
         
-       
+        
         risk_status = "High Risk" if results.get('prediction') else "Low Risk"
         risk_color = (255, 0, 0) if results.get('prediction') else (0, 128, 0)
         self.pdf.set_text_color(*risk_color)
         self.pdf.cell(0, 10, f"Kidney Disease Risk: {risk_status} ({results.get('probability', 0)}% confidence)", ln=1)
         self.pdf.set_text_color(0, 0, 0)
         
-    
         self.pdf.cell(0, 10, f"eGFR: {results.get('egfr', 'N/A')} mL/min/1.73m²", ln=1)
         self.pdf.cell(0, 10, f"CKD Stage: {results.get('stage', 'N/A')} - {results.get('stage_desc', '')}", ln=1)
         
-       
+        
         self.pdf.ln(5)
         self.pdf.set_font('Arial', 'B', 12)
         self.pdf.cell(0, 10, 'Daily Fluid Recommendation:', ln=1)
@@ -280,6 +281,7 @@ class PDFReportGenerator:
         for food in diet.get('recommended', []):
             self.pdf.cell(0, 10, f"- {food.get('name', '')}", ln=1)
         
+        
         self.pdf.ln(5)
         self.pdf.set_font('Arial', 'B', 12)
         self.pdf.cell(0, 10, 'Foods to Limit/Avoid:', ln=1)
@@ -287,6 +289,7 @@ class PDFReportGenerator:
         for food in diet.get('avoid', []):
             self.pdf.cell(0, 10, f"- {food.get('name', '')}", ln=1)
         
+       
         self.pdf.ln(5)
         self.pdf.set_font('Arial', 'B', 12)
         self.pdf.cell(0, 10, 'Additional Advice:', ln=1)
@@ -302,6 +305,7 @@ class PDFReportGenerator:
         self.pdf.set_font('Arial', 'I', 8)
         self.pdf.cell(0, 10, 'This report is not a substitute for professional medical advice', 0, 0, 'C')
 
+
 @app.route('/', methods=['GET', 'POST'])
 def home():
     """Main form page"""
@@ -309,13 +313,12 @@ def home():
         try:
             form_data = request.form.to_dict()
             
-         
+           
             required_fields = ['age', 'bp', 'sg', 'al', 'su', 'creatinine', 'gender', 'weight']
             for field in required_fields:
                 if not form_data.get(field):
                     raise ValueError(f"Missing required field: {field}")
             
-           
             input_data = {
                 'age': int(form_data['age']),
                 'bp': int(form_data['bp']),
@@ -325,11 +328,11 @@ def home():
                 'creatinine': float(form_data['creatinine']),
                 'gender': form_data['gender'],
                 'weight': float(form_data['weight']),
-                'hemo': float(form_data.get('hemo', 12.5)),  
+                'hemo': float(form_data.get('hemo', 12.5)),  # Default if not provided
                 'race': form_data.get('race', 'other')
             }
             
-          
+            
             if not (18 <= input_data['age'] <= 120):
                 raise ValueError("Age must be between 18-120")
             if not (50 <= input_data['bp'] <= 200):
@@ -344,7 +347,7 @@ def home():
             )
             stage, stage_desc = ClinicalCalculator.get_ckd_stage(egfr)
             
-          
+            
             model_input = pd.DataFrame([{
                 k: v for k, v in input_data.items() 
                 if k in model_service.feature_names
@@ -353,7 +356,7 @@ def home():
             pred = model_service.model.predict(model_input)[0]
             proba = round(model_service.model.predict_proba(model_input)[0][pred] * 100, 2)
             
-         
+            
             feat_importance = dict(zip(
                 model_service.feature_names,
                 model_service.model.feature_importances_
@@ -367,7 +370,7 @@ def home():
                 egfr
             )
             
-           
+            
             session['kidney_results'] = {
     'prediction': int(pred),
     'probability': float(proba),
@@ -410,7 +413,7 @@ def results():
         return redirect(url_for('home'))
     
     try:
-       
+        
         visualization_paths = generate_visualizations(result)
         
         return render_template_string(
@@ -501,19 +504,19 @@ def generate_visualizations(result_data):
     visualization_paths = {}
     
     try:
-      
+        
         if not os.path.exists('static'):
             os.makedirs('static')
         
-        
+       
         plt.figure(figsize=(10, 6))
         stages = ['G1', 'G2', 'G3a', 'G3b', 'G4', 'G5']
         colors = ['#4CAF50', '#8BC34A', '#FFC107', '#FF9800', '#F44336', '#9C27B0']
-        stage_ranges = [90, 75, 52.5, 37.5, 22.5, 7.5]  # Midpoints for display
+        stage_ranges = [90, 75, 52.5, 37.5, 22.5, 7.5]  
         
         bars = plt.bar(stages, stage_ranges, color=colors, alpha=0.6)
         plt.axhline(y=result_data['egfr'], color='black', linestyle='--', linewidth=2)
-        
+       
         for bar in bars:
             height = bar.get_height()
             plt.text(bar.get_x() + bar.get_width()/2., height,
@@ -525,22 +528,24 @@ def generate_visualizations(result_data):
         plt.xlabel('Chronic Kidney Disease Stages')
         plt.grid(axis='y', linestyle='--', alpha=0.7)
         
-    
+       
         egfr_path = os.path.join('static', 'egfr_plot.png')
         plt.savefig(egfr_path, bbox_inches='tight', dpi=100)
         plt.close()
         visualization_paths['egfr'] = egfr_path
         
-      
+        
         plt.figure(figsize=(10, 6))
         features = list(result_data['feature_importance'].keys())
         importance = list(result_data['feature_importance'].values())
-     
+        
+        
         sorted_idx = np.argsort(importance)
         features = [features[i] for i in sorted_idx]
         importance = [importance[i] for i in sorted_idx]
         
         bars = plt.barh(features, importance, color='#4361EE')
+        
         
         for bar in bars:
             width = bar.get_width()
@@ -1286,9 +1291,9 @@ RESULTS_TEMPLATE = '''
 
 
 if __name__ == '__main__':
-   
+ 
     if not os.path.exists('static'):
         os.makedirs('static')
     
- 
+    
     app.run(host='0.0.0.0', port=5000, debug=True)
